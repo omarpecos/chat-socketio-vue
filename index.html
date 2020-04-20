@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OmarPV ChatApp</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <link href="data:image/x-icon;base64,AAABAAEAEBAQAAEABAAoAQAAFgAAACgAAAAQAAAAIAAAAAEABAAAAAAAgAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAARacoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAEQAAAAAAAAAREAAAAAAAABERAAAREREREREAARERERERERABEREREREREAEREREREREQARERERERERABEREREREREAEREREREREQARERERERERAAERERERERAAAAAAAAAAAAAAAAAAAAAAD//wAA/98AAP/PAAD/xwAA/8MAAMADAACAAQAAgAEAAIABAACAAQAAgAEAAIABAACAAQAAwAMAAP//AAD//wAA" rel="icon" type="image/x-icon" />
+    
+    <style>
+        #time{
+            float: right;
+            font-size: 9px;
+            color: darkgrey;
+            margin-top: 10px;
+        }
+        #mensajes{
+            overflow-y: auto;
+            max-height: 250px;
+        }
+
+        /* Hide scrollbar for Chrome, Safari and Opera */
+        #mensajes::-webkit-scrollbar {
+            display: none;
+        }
+
+        /* Hide scrollbar for IE and Edge */
+        #mensajes{
+            -ms-overflow-style: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+       <div class="container">
+            </br>
+        <div class="col-lg-6 offset-lg-3">
+            <!-- Antiguo mensaje de entrada/salida
+                <div v-if="ready">
+                        <div class="alert"  v-for="user in info" :class="getClass(user.type)">
+                                {{user.name}} {{user.type}} 
+                        </div>
+                </div>
+            -->
+           
+            <div class="ml-4" v-if="!ready">
+                <h4>Introduce tu información</h4>
+                <form @submit.prevent="addName">
+                    <div class="form-group row">
+                        <input type="text" class="form-control col-9" placeholder="Escribe tu nombre" v-model="name">
+                        <input type="submit" value="Introducir" class="btn btn-sm btn-info ml-1"> 
+                    </div>
+                </form>
+            </div>
+            <h2 v-else>{{name}}</h2>
+            <div class="card bg-info" v-if="ready">
+
+                <div class="card-header text-white">
+                  OmarPV Chat &nbsp;<span class="badge badge-pill badge-danger">{{ connections }} conectados</span>
+                </div>
+                <ul id="mensajes"  class="list-group list-group-flush" v-chat-scroll>
+
+                    <li class="list-group-item" :class="messageClass(msg.type)" v-for="msg in messages">
+                        <span :class="{'float-right':msg.type === 0}">
+                            <small id="time">
+                                &nbsp;{{msg.time}}
+                            </small>
+                                {{ msg.message }}
+                            <small class="badge badge-pill badge-dark">{{msg.by}}</small>
+                        </span> 
+                    </li>
+                </ul>
+
+                <div class="card-body">
+                    <form @submit.prevent="send">
+                        <div class="form-group">
+                          <input type="text" class="form-control" placeholder="Escribe aquí" v-model="newMessage">
+                        </div>
+                        <small class="badge badge-light" v-if="typing">{{typing}} está escribiendo...</small>
+                    </form>
+                </div>
+              </div>
+        </div>
+          
+       </div>
+    </div>
+ 
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.5.16/vue.min.js" integrity="sha256-TaLceMwjWRqe4yhbqPOJH6V7UGt5AvvdNfpaIXJWbFU=" crossorigin="anonymous"></script>
+   <script>
+        var socket = io();
+
+      
+
+        let app = new Vue({
+            el: '#app',
+
+            data:{
+                newMessage: null,
+                messages : [],
+                typing : false,
+                name : null,
+                ready :false,
+                info : [],
+                connections : 0
+            },
+
+            watch:{
+                newMessage(value){
+                    value ? socket.emit('typing',this.name):socket.emit('stopTyping');
+                }
+            },
+
+            methods:{
+                send(){
+                    var tiempo = this.getTime();
+                    this.messages.push({message : this.newMessage, type:0 , by: 'Tú',time :tiempo});
+                    socket.emit('chat-message',{message : this.newMessage, user: this.name , time : tiempo});
+                    this.newMessage = '';
+                },
+
+                addName(){
+                    this.ready = true;
+                    socket.emit('joined',this.name);
+                },
+
+               /* getClass(value){
+                    if (value == 'entró'){
+                        return 'list-group-item-success';
+                    }else{
+                        return 'list-group-item-warning';
+                    }
+                },*/
+
+                messageClass(value){
+                    if (value == 0){
+                        return 'list-group-item-success';
+                    }else{
+                        return 'list-group-item-warning';
+                    }
+                },
+
+                getTime(){
+                    var time = new Date();
+                    var minutos = (time.getMinutes() < 10 ? '0' : '') + time.getMinutes()
+                    var cadena = time.getHours()+':'+ minutos;
+                    return cadena;
+                }
+
+
+            },
+
+
+            created(){
+                //Leaved
+                window.onbeforeunload = () =>{
+                    socket.emit('leaved',this.name);
+                }
+
+                socket.on('connections', (data) =>{
+                    this.connections = data;
+                });
+
+               /* socket.emit('test','Omar');
+
+                //listening event for others
+                socket.on('test',(data)=>{
+                    console.log(data);
+                });*/
+
+                //listening event for others
+                socket.on('chat-message',(data)=>{
+                    this.messages.push(({message : data.message, type:1, by: data.user, time : data.time}));
+                });
+
+                socket.on('typing',(name)=>{
+                    this.typing = name;
+                });
+
+                socket.on('stopTyping',(data)=>{
+                    this.typing = false;
+                });
+
+                socket.on('joined',(data)=> {
+                    /*// o se puede hacer con un alert de v-toaster
+                    this.info.push({name : data,type:'entró'});
+
+                    setTimeout(() =>{
+                        this.info = [];
+                    }, 5000);*/
+
+                    this.$toaster.success(data+' se ha unido');
+                });
+
+                socket.on('leaved',(data)=>{
+                    
+                    this.connections -= 1;
+                   /* // o se puede hacer con un alert de v-toaster
+                    this.info.push({name : data,type:'salió'});
+
+                    setTimeout(() =>{
+                        this.info = [];
+                    }, 5000);*/
+                    this.$toaster.warning(data+' ha abandonado la sala');
+                });
+            }
+
+        })
+
+    </script>
+
+    <!-- Include after Vue -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/v-toaster@1.0.3/dist/v-toaster.css"></link>
+<script src="https://cdn.jsdelivr.net/npm/v-toaster@1.0.3/dist/v-toaster.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vue-chat-scroll/dist/vue-chat-scroll.min.js"></script>
+<script>
+  Vue.use(VToaster, {timeout: 5000})
+</script>
+</body>
+</html>
